@@ -15,7 +15,7 @@ func main() {
 	cluster.Consistency = gocql.Quorum
 	session, err := cluster.CreateSession()
 	if err != nil {
-		log.Fatal("Failed to connect to Cassandra:", err)
+		log.Fatal("Failed to connect to Cassandra!:", err)
 	}
 
 	defer session.Close()
