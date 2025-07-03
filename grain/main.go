@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	// Connect to Cassandra
+	//Connect to Cassandra
 	cluster := gocql.NewCluster("127.0.0.1") // Replace with your Cassandra IP
 	cluster.Keyspace = "grainapp"
 	cluster.Consistency = gocql.Quorum
@@ -17,13 +17,13 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to Cassandra:", err)
 	}
+
 	defer session.Close()
 
 	r := gin.Default()
 
-	// Pass session to handlers
 	r.POST("/users", handlers.CreateUser(session))
 	r.GET("/users/:id", handlers.GetUser(session))
 
-	r.Run(":8080") // Run on localhost:8080
+	r.Run(":8080")
 }

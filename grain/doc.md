@@ -28,3 +28,8 @@ It stores:
 Cryptographic checksums for all dependencies (including transitive ones).
 These are verified during go build, go get, etc., to ensure no tampering or mismatch.
 
+
+
+# Exported names
+In Go, a name is exported if it begins with a capital letter.
+pizza and pi do not start with a capital letter, so they are not exported.
