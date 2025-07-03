@@ -13,5 +13,6 @@ func NewUser(name, email string) User {
 	return User{
 		Name:  name,
 		Email: email,
+		ID:    gocql.TimeUUID(),
 	}
 }

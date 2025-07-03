@@ -10,14 +10,14 @@ type UserRepo interface {
 	Create(user entities.User) error
 }
 
-type CassandraUserRepo struct {
+type cassandraUserRepo struct {
 	session *gocql.Session
 }
 
 func NewUserRepository(session *gocql.Session) UserRepo {
-	return &CassandraUserRepo{session: session}
+	return &cassandraUserRepo{session: session}
 }
 
-func (r *CassandraUserRepo) Create(user entities.User) error {
+func (r *cassandraUserRepo) Create(user entities.User) error {
 	return r.session.Query(`INSERT INTO users (id, name, email) VALUES (?, ?, ?)`, user.ID, user.Name, user.Email).Exec()
 }

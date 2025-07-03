@@ -2,6 +2,8 @@ package main
 
 import (
 	"grain/handlers"
+	"grain/repositories"
+	"grain/services"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -22,8 +24,13 @@ func main() {
 
 	r := gin.Default()
 
-	r.POST("/users", handlers.CreateUser(session))
-	r.GET("/users/:id", handlers.GetUser(session))
+	// r.POST("/users", handlers.CreateUser(session))
+	// r.GET("/users/:id", handlers.GetUser(session))
 
+	repo := repositories.NewUserRepository(session)
+	service := services.NewUserService(repo)
+	handler := handlers.NewUserHandler(service)
+	r.POST("/users", handler.Create)
+	//r.GET("/users/:id", handlers.GetUser(session))
 	r.Run(":8080")
 }
