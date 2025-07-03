@@ -33,3 +33,11 @@ These are verified during go build, go get, etc., to ensure no tampering or mism
 # Exported names
 In Go, a name is exported if it begins with a capital letter.
 pizza and pi do not start with a capital letter, so they are not exported.
+
+
+# gin.HandlerFunc
+gin.HandlerFunc is a func(c *gin.Context) — a typical HTTP handler in Gin.
+c *gin.Context is the actual Gin handler that handles the HTTP request 
+
+if initialization; condition { }
+if err:= func(); err!=nil{ }
