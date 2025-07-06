@@ -41,3 +41,48 @@ c *gin.Context is the actual Gin handler that handles the HTTP request
 
 if initialization; condition { }
 if err:= func(); err!=nil{ }
+
+
+# exception handling
+In Go, error handling is explicit and always returned as a value (error).
+err := repo.Create(user) if err != nil {     // handle it }
+
+# * in Go- Avoid 
+a pointer to an object- reference a memory location.
+copying large structs, Share mutable state.
+*gocql.Session: share a single Cassandra session across functions without copying it
+
+# return &cassandraUserRepo{session: session}
+& creates a pointer to the struct.
+
+#  Receiver Methods
+func (u *User) IsEmpty() bool {
+	return u.Name == ""
+}
+
+interfaces in Go are already reference-like types
+
+
+# Cassandra consistency level
+consistency level controls how many replicas must acknowledge a read or write operation before it's considered successful.
+gocql.One means:
+Only 1 replica needs to respond for the query to succeed.
+It’s fast, but less reliable if replicas are out of sync.
+gocql.Quorum: a majority of replicas must respond — safer for consistency.
+gocql.All: all replicas must agree — safest, but slower.
+
+# Defer
+A defer statement defers the execution of a function until the surrounding function returns.
+Stacking defers: Deferred function calls are pushed onto a stack. 
+
+
+# Slices
+a dynamically-sized, flexible view into the elements of an array. 
+includes the first element, but excludes the last one.
+a[low : high]
+a[1:4]
+Slices are like references to arrays; A slice does not store any data, it just describes a section of an underlying array.
+Changing the elements of a slice modifies the corresponding elements of its underlying array.
+
+
+https://go.dev/tour/moretypes/9

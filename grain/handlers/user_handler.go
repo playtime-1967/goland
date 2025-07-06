@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"errors"
 	"grain/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gocql/gocql"
 )
 
 type UserHandler struct {
@@ -36,42 +38,24 @@ func (h *UserHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
-// func CreateUser(session *gocql.Session) gin.HandlerFunc {
-// 	return func(c *gin.Context) {
-// 		var user entities.User
-// 		if err := c.ShouldBindJSON(&user); err != nil {
-// 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 			return
-// 		}
+func (h *UserHandler) Get(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := gocql.ParseUUID(idStr)
 
-// 		user.ID = gocql.TimeUUID()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid UUID"})
+		return
+	}
+	user, err := h.service.Get(id)
+	if err != nil {
+		if errors.Is(err, gocql.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
 
-// 		if err := session.Query(`INSERT INTO users (id, name, email) VALUES (?, ?, ?)`,
-// 			user.ID, user.Name, user.Email).Exec(); err != nil {
-// 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-// 			return
-// 		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-// 		c.JSON(http.StatusCreated, user)
-// 	}
-// }
-
-// func GetUser(session *gocql.Session) gin.HandlerFunc {
-// 	return func(c *gin.Context) {
-// 		idStr := c.Param("id")
-// 		id, err := gocql.ParseUUID(idStr)
-// 		if err != nil {
-// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid UUID"})
-// 			return
-// 		}
-
-// 		var user entities.User
-// 		if err := session.Query(`SELECT id, name, email FROM users WHERE id = ?`, id).
-// 			Scan(&user.ID, &user.Name, &user.Email); err != nil {
-// 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-// 			return
-// 		}
-
-// 		c.JSON(http.StatusOK, user)
-// 	}
-// }
+	c.JSON(http.StatusOK, user)
+}

@@ -1,5 +1,5 @@
 ### GET request
-GET http://127.0.0.1:8080/users/1
+GET http://127.0.0.1:8080/users/44198bb4-569f-11f0-96a2-00155ddf25df
 
 ### POST request
 POST http://127.0.0.1:8080/users

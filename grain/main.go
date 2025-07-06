@@ -11,6 +11,8 @@ import (
 )
 
 func main() {
+	RunSamples()
+	return
 	//Connect to Cassandra
 	cluster := gocql.NewCluster("127.0.0.1") // Replace with your Cassandra IP
 	cluster.Keyspace = "grainapp"
@@ -24,13 +26,10 @@ func main() {
 
 	r := gin.Default()
 
-	// r.POST("/users", handlers.CreateUser(session))
-	// r.GET("/users/:id", handlers.GetUser(session))
-
 	repo := repositories.NewUserRepository(session)
 	service := services.NewUserService(repo)
 	handler := handlers.NewUserHandler(service)
 	r.POST("/users", handler.Create)
-	//r.GET("/users/:id", handlers.GetUser(session))
+	r.GET("/users/:id", handler.Get)
 	r.Run(":8080")
 }
