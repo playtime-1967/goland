@@ -85,4 +85,23 @@ Slices are like references to arrays; A slice does not store any data, it just d
 Changing the elements of a slice modifies the corresponding elements of its underlying array.
 
 
-https://go.dev/tour/moretypes/9
+# Slice literals
+A slice literal is like an array literal without the length.
+creates an array, then builds a slice that references it:
+[]bool{true, true, false}
+
+# Slice length and capacity
+The length of a slice is the number of elements it contains
+The capacity of a slice is the number of elements in the underlying array, counting from the first element in the slice.
+The length and capacity of a slice s can be obtained using the expressions len(s) and cap(s).
+You can extend a slice's length by re-slicing it, provided it has sufficient capacity.
+
+
+# fmt.Printf
+%d	Decimal integer
+%s	String	
+%v	Default format (very useful for slices, structs, etc.)	
+%T	Type of the value	fmt.Printf("%T", x) → int
+%f	Decimal floating point
+%t	Boolean	fmt.Printf("%t", true)
+%q Double-quoted string fmt.Printf("%q", "hello") → "hello"
