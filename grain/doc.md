@@ -105,3 +105,16 @@ You can extend a slice's length by re-slicing it, provided it has sufficient cap
 %f	Decimal floating point
 %t	Boolean	fmt.Printf("%t", true)
 %q Double-quoted string fmt.Printf("%q", "hello") → "hello"
+
+
+# Choosing a value or pointer receiver
+There are two reasons to use a pointer receiver.
+The first is so that the method can modify the value that its receiver points to.
+The second is to avoid copying the value on each method call. This can be more efficient if the receiver is a large struct.
+
+# Interfaces are implemented implicitly
+A type implements an interface by implementing its methods. There is no explicit declaration of intent, no "implements" keyword.
+Implicit interfaces decouple the definition of an interface from its implementation, which could then appear in any package without prearrangement.
+
+
+# Interface values with nil underlying values

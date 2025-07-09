@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -191,8 +192,159 @@ func RunSamples() {
 		},
 	}
 	fmt.Println(mm)
+
+	//Mutating Maps
+	m2 := make(map[string]int)
+
+	m2["Answer"] = 1
+	m2["Answer"] = 2
+	fmt.Println(m2)
+
+	delete(m2, "Answer")
+	m2["Answer"] = 3
+
+	val, ok := m2["Answer"]
+	fmt.Println("The value:", val, "Present?", ok)
+
+	//Function values
+	//Functions are values too. They can be passed around just like other values.
+	fn := func(x, y float64) float64 {
+		return math.Sqrt(x*x + y*y)
+	}
+	fmt.Println(fn(5, 12))
+	fmt.Println(compute(fn))
+	fmt.Println(compute(math.Pow))
+
+	//Function closures
+	pos, neg := adder(), adder()
+	for i := 0; i < 3; i++ {
+		fmt.Println(
+			pos(i),
+			neg(-2*i),
+		)
+	}
+
+	//Methods
+	//define methods on types
+	//A method is a function with a special receiver argument.
+	//You cannot declare a method with a receiver whose type is defined in another package
+	vm := Wertex{1.1, 2.2}
+	fmt.Println(vm.Abs())
+
+	//Pointer receivers *T (T cannot itself be a pointer)
+	vm.Scale(10)
+	fmt.Println(vm)
+	vm2 := &vm
+	vm2.Scale(10) //Works: methods with pointer receivers take either a value or a pointer as the receiver when they are called:
+	fmt.Println(vm2)
+
+	//Pointers and functions
+	Scale(&vm, 20)
+	//Scale(vm, 20) Compile error!
+	fmt.Println(vm)
+
+	//Interfaces
+	var abser Abser
+	myf := MyFloat(math.Sqrt2)
+	abser = myf
+
+	wer := &Wertex{1, 2}
+	abser = wer
+	abser.Abs2()
+
+	wer2 := Wertex{1, 2}
+	//abser = wer2 Compile error!
+	wer2.Abs2()
+
+	//Interfaces are implemented implicitly
+	var i2 I = &TT{S: "something"}
+	i2.M()
+	describe(i2)
+
+	//Interface values with nil underlying values
+	var i3 I
+	var t3 *TT
+	i3 = t3
+	describe(i3)
+	i3.M() //Nil
+
+	//Nil interface value
+	var i4 I
+	describe(i4)
+	//i4.M() // Compile error!: which concrete method to call
+
+	//The empty interface :zero methods
+	//An empty interface may hold values of any type.
+	//For example, fmt.Print takes any number of arguments of type interface{}.
+	var empty Empty
+	describe(empty)
+	empty = 10
+	describe(empty)
+	empty = "text"
+	describe(empty)
 }
 
+//https://go.dev/tour/methods/15
+//----------------------------
+
+type Empty interface{}
+
+// ---------------------
+type I interface {
+	M()
+}
+type TT struct {
+	S string
+}
+
+func (t *TT) M() {
+	if t == nil {
+		fmt.Println("<nil>")
+		return
+	}
+	fmt.Println(t.S)
+}
+func describe(i Empty) {
+	fmt.Printf("(%v, %T) \n", i, i)
+}
+
+// ---------
+type Abser interface {
+	Abs2() float64
+}
+type MyFloat float64
+
+func (f MyFloat) Abs2() float64 {
+	if f < 0 {
+		return float64(-f)
+	}
+
+	return float64(f)
+}
+
+func (w *Wertex) Abs2() float64 {
+	return math.Sqrt(w.Lat*w.Lat + w.Long*w.Long)
+}
+
+///-------
+
+func (v Wertex) Abs() float64 {
+	return math.Sqrt(v.Long*v.Long + v.Lat*v.Lat)
+}
+
+// method
+func (w *Wertex) Scale(f float64) {
+	w.Lat = w.Lat * f
+	w.Long = w.Long * f
+}
+
+// func
+func Scale(w *Wertex, f float64) {
+	w.Lat = w.Lat * f
+	w.Long = w.Long * f
+}
+
+// ----------
 func printSlice(s []int) {
 	fmt.Printf("len=%d cap=%d %v\n", len(s), cap(s), s)
 }
@@ -208,6 +360,18 @@ type Vertex struct {
 
 type Wertex struct {
 	Long, Lat float64
+}
+
+func compute(myfunc func(float64, float64) float64) float64 {
+	return myfunc(3, 4)
+}
+
+func adder() func(int) int {
+	sum := 0
+	return func(x int) int {
+		sum += x
+		return sum
+	}
 }
 
 //
