@@ -106,7 +106,6 @@ You can extend a slice's length by re-slicing it, provided it has sufficient cap
 %t	Boolean	fmt.Printf("%t", true)
 %q Double-quoted string fmt.Printf("%q", "hello") → "hello"
 
-
 # Choosing a value or pointer receiver
 There are two reasons to use a pointer receiver.
 The first is so that the method can modify the value that its receiver points to.
@@ -118,3 +117,26 @@ Implicit interfaces decouple the definition of an interface from its implementat
 
 
 # Interface values with nil underlying values
+If the concrete value inside the interface itself is nil, the method will be called with a nil receiver.
+
+# type ErrNegativeSqrt float64
+ErrNegativeSqrt {} //error: WHY?
+You're trying to use a composite literal syntax (i.e., Type{}), but ErrNegativeSqrt is defined as a type alias for float64, not a struct or composite type.
+Correct way: ErrNegativeSqrt(x) //pass a float64 value into the constructor
+
+
+# Readers
+r := strings.NewReader("Hello, Reader!") // wraps a string into a stream
+b := make([]byte, 8) //b is an 8-byte buffer.
+r.Read(b) //fills the buffer b with up to 8 bytes from the string.
+//r.Read(b) The reader maintains an internal position pointer, and advances it by n after each read.
+
+
+# make(chan int) 
+creates an unbuffered channel 
+
+# channels, Range and Close
+A sender can close a channel to indicate that no more values will be sent. Receivers can test whether a channel has been closed by assigning a second parameter to the receive expression:
+v, ok := <-ch
+
+Only the sender should close a channel, never the receiver. Sending on a closed channel will cause a panic.

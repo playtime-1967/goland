@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
+	"image"
+	"io"
 	"math"
 	"strings"
+	"time"
 )
 
 func RunSamples() {
@@ -282,10 +285,243 @@ func RunSamples() {
 	describe(empty)
 	empty = "text"
 	describe(empty)
+
+	//Type assertions
+	//A type assertion provides access to an interface value's underlying concrete value.
+	var it interface{} = "Hello"
+	st := it.(string)
+	fmt.Println(st)
+
+	//To test whether an interface value holds a specific type, a type assertion can return two values
+	st2, ok2 := it.(string)
+	fmt.Println(st2, ok2)
+
+	st3, ok3 := it.(float64) //panic
+	fmt.Println(st3, ok3)
+
+	//Type switches
+	do(110)
+	do("Hi")
+	do(true)
+
+	//Stringers
+	pp := &person{"Woolf", 45}
+	fmt.Println(pp)
+
+	//
+	hosts := map[string]IPAddr{
+		"loopback":  {127, 0, 0, 1},
+		"googleDNS": {8, 8, 8, 8},
+	}
+	for name, ip := range hosts {
+		fmt.Printf("%v: %v\n", name, ip)
+	}
+
+	//Errors
+	if err := RunErrorTest(); err != nil {
+		fmt.Println(err)
+	}
+
+	sq, err := Sqrt(10)
+	fmt.Println(sq, err)
+
+	sq, err = Sqrt(-10)
+	fmt.Println(sq, err)
+	if x, err := Sqrt(-10); err != nil {
+		fmt.Println(err, x)
+	}
+
+	//Readers
+	redr := strings.NewReader("Hello, Reader!")
+
+	byt := make([]byte, 8)
+	for {
+		n, err := redr.Read(byt)
+		fmt.Printf("n = %v err = %v b = %v\n", n, err, byt)
+		fmt.Printf("b[:n] = %q\n", byt[:n])
+		if err == io.EOF {
+			break
+		}
+	}
+
+	//infinite stream
+	// myr := MyReader{}
+	// __, _ := myr.Read(make([]byte, 1))
+	// println(__)
+
+	//Images
+	mi := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	fmt.Println(mi.Bounds())
+	fmt.Println(mi.At(0, 0).RGBA())
+
+	//Generics
+	//1- functions& parameters
+	ig := []int{1, 10, 15, 20}
+	println(Index(ig, 15))
+	sg := []string{"foo", "bar", "zar"}
+	println(Index(sg, "for"))
+
+	//Goroutines
+	//a lightweight thread managed by the Go runtime.
+
+	go say("world")
+	say("hello")
+
+	//Channels
+	//By default, sends and receives block until the other side is ready. This allows goroutines to
+	// synchronize without explicit locks or condition variables.
+
+	sc := []int{7, 2, 8, -9, 4, 0}
+	cch := make(chan int)
+	go sum(sc[:len(sc)/2], cch)
+	go sum(sc[len(sc)/2:], cch)
+	x, y := <-cch, <-cch // receive from cch
+	fmt.Println(x, y, x+y)
+
+	//1- Use a goroutine for sending or receiving
+	ch := make(chan int)
+	go func() {
+		ch <- 42 //send to the ch in a separate thread of execution
+
+	}()
+	vv := <-ch //receive from the ch
+	fmt.Println(vv)
+
+	//2-Use a buffered channel
+	ch2 := make(chan int, 1)
+	ch2 <- 42
+	vv2 := <-ch2
+	fmt.Println(vv2)
+
+	//Buffered Channels
+	//Sends to a buffered channel block only when the buffer is full. Receives block when the buffer is empty.
+	ch3 := make(chan int, 2)
+	ch3 <- 7
+	ch3 <- 8
+	println(<-ch3)
+	println(<-ch3)
+
+	//Close channels
+	//Range and Close
+	println("------------------")
+	ch4 := make(chan int, 10)
+	go fibo(cap(ch4), ch4)
+	//Closing is only necessary when the receiver must be told there are no more values coming,
+	// such as to terminate a range loop.
+	for i := range ch4 {
+		println(i)
+	}
 }
 
-//https://go.dev/tour/methods/15
-//----------------------------
+//https://go.dev/tour/concurrency/5
+
+func fibo(n int, c chan int) {
+	x, y := 0, 1
+	for i := 0; i < n; i++ {
+		c <- x
+		x, y = y, x+y
+	}
+	close(c) //if we don't close, the channel waiting forever to receive a new val
+}
+
+// /-------
+func sum(s []int, c chan int) {
+	sum := 0
+	for _, v := range s {
+		sum += v
+	}
+	c <- sum // send sum to c
+}
+
+func say(s string) {
+	for i := 0; i < 3; i++ {
+		time.Sleep(100 * time.Millisecond)
+		println(s)
+	}
+}
+
+type List[T any] struct {
+	next  *List[T]
+	value T
+}
+
+// ------
+func Index[T comparable](s []T, x T) int {
+
+	for i, v := range s {
+		if v == x {
+			return i
+		}
+	}
+	return -1
+}
+
+// ------ Custom Reader
+type MyReader struct{}
+
+func (r MyReader) Read(b []byte) (int, error) {
+	for {
+		n, _ := strings.NewReader("A").Read(b)
+		fmt.Printf("= %q\n", b[:n])
+	}
+}
+
+// ------ Custom Error
+type ErrNegativeSqrt float64
+
+func (e ErrNegativeSqrt) Error() string {
+	return fmt.Sprintf("cannot Sqrt negative number: %v", float64(e))
+}
+
+func Sqrt(x float64) (float64, error) {
+	if x < 0 {
+		return 0, ErrNegativeSqrt(x)
+	}
+	return x, nil
+}
+
+// ---
+type MyError struct {
+	When time.Time
+	What string
+}
+
+func (e *MyError) Error() string {
+	return fmt.Sprintf("at %v, %s", e.When, e.What)
+}
+
+func RunErrorTest() error {
+	return &MyError{time.Now(), "it didn't work"}
+}
+
+// -------------
+type IPAddr [4]byte
+
+func (addr IPAddr) String() string {
+	return fmt.Sprintf("%v.%v.%v.%v", addr[0], addr[1], addr[2], addr[3])
+}
+
+// --------------
+type person struct {
+	Name string
+	Age  int
+}
+
+func (p *person) String() string {
+	return fmt.Sprintf("%v (%v years)", p.Name, p.Age)
+}
+
+// ----------------------------
+func do(i interface{}) {
+	switch v := i.(type) {
+	case int:
+		fmt.Printf("twice %v is %v \n", v, v*2)
+	case string:
+		fmt.Printf("%q is %v  bytes long\n", v, len(v))
+	default:
+		fmt.Printf("I don't know about type %T\n", v)
+	}
+}
 
 type Empty interface{}
 
