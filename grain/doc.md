@@ -140,3 +140,12 @@ A sender can close a channel to indicate that no more values will be sent. Recei
 v, ok := <-ch
 
 Only the sender should close a channel, never the receiver. Sending on a closed channel will cause a panic.
+
+# %6s
+format a string with a minimum width of 6 characters, right-aligned by default.
+
+# mutual exclusion
+channels are great for communication among goroutines. 
+But what if we don't need communication? What if we just want to make sure only one goroutine can access a variable at a time to avoid conflicts?
+Go's standard library provides mutual exclusion with sync.Mutex and its two methods:
+Lock, Unlock

@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -411,10 +412,84 @@ func RunSamples() {
 	for i := range ch4 {
 		println(i)
 	}
+	println("------------------")
+	//Select
+	//lets a goroutine wait on multiple communication operations.
+	//A select blocks until one of its cases can run, then it executes that case
+	ch5 := make(chan int)
+	quit := make(chan int)
+	go func() {
+		for i := 0; i < 5; i++ {
+			fmt.Println(<-ch5)
+		}
+		quit <- 0
+	}()
+	fibonacci(ch5, quit)
+
+	//Default Selection
+	selectFunc()
+	println("------------------")
+	//mutual exclusion
+	counter := SafeCounter{v: make(map[string]int)}
+	for i := 0; i < 10; i++ {
+		go counter.Inc("mykey")
+	}
+	time.Sleep(time.Millisecond)
+	println(counter.Value("mykey"))
 }
 
-//https://go.dev/tour/concurrency/5
+type SafeCounter struct {
+	mu sync.Mutex
+	v  map[string]int
+}
 
+func (c *SafeCounter) Inc(key string) {
+	c.mu.Lock()
+	//only one goroutine at a time can access the map
+	c.v[key]++
+	c.mu.Unlock()
+}
+func (c *SafeCounter) Value(key string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock() //mutex will be unlocked at the end
+	return c.v[key]
+}
+
+// ---------------
+func selectFunc() {
+	start := time.Now()
+	tick := time.Tick(10 * time.Millisecond)
+	boom := time.After(25 * time.Millisecond)
+	elapsed := func() time.Duration {
+		return time.Since(start).Round(time.Millisecond)
+	}
+	for {
+		select {
+		case <-tick:
+			fmt.Printf("[%6s] tick.\n", elapsed())
+		case <-boom:
+			fmt.Printf("[%6s] BOOM!\n", elapsed())
+			return
+		default:
+			fmt.Printf("[%6s]     .\n", elapsed())
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+}
+func fibonacci(c, quit chan int) {
+	x, y := 0, 1
+	for {
+		select {
+		case c <- x:
+			x, y = y, x+y
+		case <-quit:
+			println("quit")
+			return
+		}
+	}
+}
+
+// ----------
 func fibo(n int, c chan int) {
 	x, y := 0, 1
 	for i := 0; i < n; i++ {
