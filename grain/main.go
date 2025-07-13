@@ -11,8 +11,6 @@ import (
 )
 
 func main() {
-	RunSamples()
-	return
 	//Connect to Cassandra
 	cluster := gocql.NewCluster("127.0.0.1") // Replace with your Cassandra IP
 	cluster.Keyspace = "grainapp"
