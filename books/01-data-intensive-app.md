@@ -196,8 +196,6 @@ associative table
 also called join table- many-to-many relationships
 Many-to-many relationships often need to be queried in “both directions” :for example, finding all of the organizations that a particular person has worked for, and finding all of the people who have worked at a particular organization.
 
-
-
 The document model limitations: 
 - you cannot refer directly to a nested item within a document. If you do need to reference nested items, a relational approach works better, since you can refer to any item directly by its ID.
 
@@ -242,3 +240,34 @@ allow clients to request a JSON document with a particular structure, containing
 
 #Event Sourcing and CQRS
 
+---
+# Chapter 4. Storage and Retrieval
+
+two families of storage engines for OLTP
+- log-structured storage engines that write out immutable data files
+- storage engines such as B-trees that update data in-place. 
+
+log:
+an append-only sequence of records on disk. It doesn’t have to be human-readable; it might be binary and intended only for internal use by the database system.
+the cost of a lookup is O(n)
+index
+In order to efficiently find the value for a particular key in the database, we need a different data structure: an index.
+the general idea is to structure the data in a particular way (e.g., sorted by some key) that makes it faster to locate the data you want.
+Any kind of index consumes additional disk space and usually slows down writes, because the index also needs to be updated every time data is written.
+
+hash table
+Range queries are not efficient. For example, you cannot easily scan over all keys between 10000 and 19999—you’d have to look up each key individually in the hash map.
+
+Sorted String Table, SSTable 
+stores key-value pairs, but it ensures that they are sorted by key, and each key only appears once in the file.
+
+SSTable with a sparse index
+you do not need to keep all the keys in memory: you can group the key-value pairs within an SSTable into blocks of a few kilobytes, and then store the first key of each block in the index. This kind of index, which stores only some of the keys, is called sparse
+
+Memtable
+an LSM-tree (Log-Structured Merge-Tree) structure
+the Memtable serves as an in-memory write-back cache for recent write operations
+
+
+checksum 
+used to ensure data integrity, meaning they help verify that data is consistent and hasn't been changed accidentally or maliciously.
