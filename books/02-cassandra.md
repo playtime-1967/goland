@@ -24,3 +24,6 @@ UPDATE is treated as a new write, not an in-place modification. Updates are effe
 -The tombstone is stored in the Memtable, then flushed to an SSTable.
 -During reads, Cassandra sees the tombstone and hides the deleted data.
 -If the tombstone is older than gc_grace_seconds (default: 10 days), it's permanently purged.
+
+# Cassandra compaction 
+is a background process that reorganizes data stored in SSTables to improve read performance and reduce disk space usage. It involves merging multiple SSTables into a single, more efficient SSTable, discarding outdated data and tombstones, and optimizing data storage. Compaction is crucial for maintaining Cassandra's performance and efficiency. 

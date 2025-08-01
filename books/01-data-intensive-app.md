@@ -271,3 +271,244 @@ the Memtable serves as an in-memory write-back cache for recent write operations
 
 checksum 
 used to ensure data integrity, meaning they help verify that data is consistent and hasn't been changed accidentally or maliciously.
+
+B-Trees
+The log-structured approach is popular, but it is not the only form of key-value storage. The most widely used structure for reading and writing database records by key is the B-tree.
+Like SSTables, B-trees keep key-value pairs sorted by key, which allows efficient key-value lookups and range queries.
+
+The log-structured indexes break the database down into variable-size segments, typically several megabytes or more in size, that are written once and are then immutable. By contrast, B-trees break the database down into fixed-size blocks or pages, and may overwrite a page in-place. A page is traditionally 4 KiB in size
+
+# Comparing B-Trees and LSM-Trees
+As a rule of thumb, LSM-trees are better suited for write-heavy applications, whereas B-trees are faster for reads.
+
+backpressure in LSM-Trees
+suspend all reads and writes until the memtable has been written out to disk
+
+Write in LSM-trees
+a value is first written to the log for durability, then again when the memtable is written to disk, and again every time the key-value pair is part of a compaction
+
+Disk space usage
+B-trees can become fragmented over time: for example, if a large number of keys are deleted, the database file may contain a lot of pages that are no longer used by the B-tree. Subsequent additions to the B-tree can use those free pages, but they can’t easily be returned to the operating system because they are in the middle of the file, so they still take up space on the filesystem. Databases therefore need a background process that moves pages around to place them better, such as the vacuum process in PostgreSQL.
+
+Fragmentation is less of a problem in LSM-trees, since the compaction process periodically rewrites the data files anyway, and SSTables don’t have pages with unused space.
+
+secondary index 
+the indexed values are not necessarily unique; that is, there might be many rows under the same index entry. 
+
+Storing values within the index
+If the actual data (row, document, vertex) is stored directly within the index structure, it is called a clustered index.
+
+in-memory storages
+Even a disk-based storage engine may never need to read from disk if you have enough memory, because the operating system caches recently used disk blocks in memory anyway. Rather, they can be faster because they can avoid the overheads of encoding in-memory data structures in a form that can be written to disk.
+
+----
+# Chapter 5. Encoding and Evolution
+staged rollout(rolling upgrade)
+deploying the new version to a few nodes at a time, checking whether the new version is running smoothly, and gradually working your way through all the nodes. This allows new versions to be deployed without service downtime, and thus encourages more frequent releases and better evolvability.
+
+need to maintain compatibility in both directions@
+-Backward compatibility
+Newer code can read data that was written by older code.
+-Forward compatibility
+Older code can read data that was written by newer code.
+
+# Encoding
+Programs usually work with data in (at least) two different representations:
+- In memory, data is kept in objects, structs, lists, arrays, hash tables, trees, and so on. These data structures are optimized for efficient access and manipulation by the CPU (typically using pointers).
+
+- When you want to write data to a file or send it over the network, you have to encode it as some kind of self-contained sequence of bytes (for example, a JSON document).
+Thus, we need some kind of translation between the two representations. The translation from the in-memory representation to a byte sequence is called encoding(also known as serialization or marshalling) and the reverse is called decoding (parsing, deserialization, unmarshalling).
+
+There are exceptions in which encoding/decoding is not needed:
+zero-copy data formats that are designed to be used both at runtime and on disk/on the network, without an explicit conversion step
+
+#Language-Specific Formats
+The encoding is often tied to a particular programming language, and reading the data in another language is very difficult. 
+
+When moving to standardized encodings that can be written and read by many programming languages, JSON and XML are the obvious contenders.
+There is a lot of ambiguity around the encoding of numbers. In XML and CSV, you cannot distinguish between a number and a string. JSON distinguishes strings and numbers, but it doesn’t distinguish integers and floating-point numbers, and it doesn’t specify a precision.
+JSON and XML have good support for Unicode character strings (i.e., human-readable text), but they don’t support binary strings (sequences of bytes without a character encoding).
+
+#Binary encoding
+JSON is less verbose than XML, but both still use a lot of space compared to binary formats. 
+
+#Protocol Buffers
+(protobuf) is a binary encoding library developed at Google
+Protocol Buffers requires a schema for any data that is encoded. 
+Protocol Buffers comes with a code generation tool that takes a schema definition and produces classes that implement the schema in various programming languages.
+Each field is identified by its tag number (the numbers 1, 2, 3 in the sample schema)
+
+# Modes of Dataflow
+Via databases
+Via service calls: REST and RPC
+Via workflow engines: Durable Execution
+Via asynchronous messages
+
+The problems with remote procedure calls (RPCs)
+A local function call is predictable and either succeeds or fails.
+A network request is unpredictable
+The client and the service may be implemented in different programming languages, so the RPC framework must translate datatypes from one language into another.
+
+#Durable Execution and Workflows
+
+# Chapter 6. Replication
+
+Replication 
+means keeping a copy of the same data on multiple machines that are connected via a network
+If the data that you’re replicating does not change over time, then replication is easy: you just need to copy the data to every node once, and you’re done. 
+All of the difficulty in replication lies in handling changes to replicated data
+
+Backups and replication
+replicas quickly reflect writes from one node on other nodes, but backups store old snapshots of the data so that you can go back in time. If you accidentally delete some data, replication doesn’t help since the deletion will have also been propagated to the replicas
+
+Each node that stores a copy of the database is called a replica. With multiple replicas, a question inevitably arises: how do we ensure that all the data ends up on all the replicas?
+
+
+# Single-Leader Replication
+ Whenever the leader writes new data to its local storage, it also sends the data change to all of its followers as part of a replication log or change stream
+ When a client wants to read from the database, it can query either the leader or any of the followers.
+
+Synchronous Versus Asynchronous Replication
+the replication to follower 1 is synchronous: the leader waits until follower 1 has confirmed that it received the write before reporting success to the user, and before making the write visible to other clients.
+The replication to follower 2 is asynchronous: the leader sends the message, but doesn’t wait for a response from the follower.
+
+
+# Multi-Leader Replication
+Imagine you have a database with replicas in several different regions (perhaps so that you can tolerate the failure of an entire region, or perhaps in order to be closer to your users). This is known as a geographically distributed, geo-distributed or geo-replicated setup.
+
+every write can be processed in the local region and is replicated asynchronously to the other regions. Thus, the inter-region network delay is hidden from users, which means the perceived performance may be better.
+
+
+Sync Engines and Local-First Software
+an application that needs to continue to work while it is disconnected from the internet.
+If you make any changes while you are offline, they need to be synced with a server and your other devices when the device is next online.
+In this case, every device has a local database replica that acts as a leader (it accepts write requests), and there is an asynchronous multi-leader replication process (sync) between the replicas of your calendar on all of your devices.
+From an architectural point of view, this setup is very similar to multi-leader replication between regions, taken to the extreme: each device is a “region,” and the network connection between them is extremely unreliable.
+
+Real-time collaboration, offline-first, and local-first apps
+This again results in a multi-leader architecture: each web browser tab that has opened the shared file is a replica, and any updates that you make to the file are asynchronously replicated to the devices of the other users who have opened the same file.
+If multiple users have changed the file concurrently, conflict resolution logic may be needed to merge those changes.
+Git is a local-first collaboration system
+
+Pros of sync engines
+when using a sync engine, you have persistent state on the client, and communication with the server is moved into a background process.
+A sync engine combined with a reactive programming model is a good way of implementing this 
+Sync engines work best when all the data that the user may need is downloaded in advance and stored persistently on the client.
+
+cons of sync engines
+The biggest problem with multi-leader replication—both in a geo-distributed server-side database and a local-first sync engine on end user devices—is that concurrent writes on different leaders can lead to conflicts that need to be resolved.
+
+#Dealing with Conflicting Writes
+concurrent writes on different leaders can lead to conflicts that need to be resolved.
+- Conflict avoidance
+One strategy for conflicts is to avoid them occurring in the first place. 
+for ex: 
+If you have two leaders, you could set them up so that one leader only generates odd numbers and the other only generates even numbers.
+-Last write wins (discarding concurrent writes)
+If conflicts can’t be avoided, the simplest way of resolving them is to attach a timestamp to each write, and to always use the value with the greatest timestamp... This achieves the goal that eventually all replicas end up in a consistent state, but at the cost of data loss.
+a problem with LWW is that if a real-time clock (e.g. a Unix timestamp) is used as timestamp for the writes, the system becomes very sensitive to clock synchronization. If one node has a clock that is ahead of the others, and you try to overwrite a value written by that node, your write may be ignored as it may have a lower timestamp. This problem can be solved by using a logical clock.
+If lost updates are not acceptable, you need to use one of the conflict resolution approaches:
+-Manual conflict resolution
+
+
+# Leaderless Replication
+like Cassandra
+this kind of database is also known as Dynamo-style.
+In some leaderless implementations, the client directly sends its writes to several replicas, while in others, a coordinator node does this on behalf of the client. However, unlike a leader database, that coordinator does not enforce a particular ordering of writes. 
+
+Catching up on missed writes
+The replication system should ensure that eventually all the data is copied to every replica. After an unavailable node comes back online
+
+Quorums for reading and writing
+In our example (n = 3, w = 2, r = 2.) As long as w + r > n
+You can think of r and w as the minimum number of votes required for the read or write to be valid.
+
+In Dynamo-style databases, the parameters n, w, and r are typically configurable. A common choice is to make n an odd number (typically 3 or 5) and to set w = r = (n + 1) / 2 (rounded up). However, you can vary the numbers as you see fit. For example, a workload with few writes and many reads may benefit from setting w = n and r = 1. This makes reads faster, but has the disadvantage that just one failed node causes all database writes to fail.
+
+The quorum condition, w + r > n, allows the system to tolerate unavailable nodes as follows:
+If w < n, we can still process writes if a node is unavailable.
+If r < n, we can still process reads if a node is unavailable.
+With n = 3, w = 2, r = 2 we can tolerate one unavailable node.
+With n = 5, w = 3, r = 3 we can tolerate two unavailable nodes.
+
+
+#Single-Leader vs. Leaderless Replication Performance
+Reading from the leader ensures up-to-date responses, but it suffers from performance problems:
+Read throughput is limited by the leader’s capacity to handle requests 
+If the leader fails, you have to wait for the fault to be detected
+
+A big advantage of a leaderless architecture is that it is more resilient against such issues.
+
+#Multi-region operation
+Cassandra and ScyllaDB implement their multi-region support within the normal leaderless model
+
+
+# Chapter 7. Sharding
+split up a large amount of data into smaller shards or partitions, and store different shards on different nodes
+each piece of data (each record, row, or document) belongs to exactly one shard. 
+
+Sharding is usually combined with replication so that copies of each shard are stored on multiple nodes.
+
+What we call a shard in this chapter has many different names depending on which software you’re using: it’s called a partition in Kafka, a range in CockroachDB, a region in HBase and TiDB, a tablet in Bigtable and YugabyteDB, a vnode in Cassandra.
+
+in PostgreSQL, partitioning is a way of splitting a large table into several files that are stored on the same machine (which has several advantages, such as making it very fast to delete an entire partition), whereas sharding splits a dataset across multiple machines
+
+Pros and Cons of Sharding
+The primary reason for sharding a database is scalability: it’s a solution if the volume of data or the WRITE throughput has become too great for a single node to handle, as it allows you to spread that data and those writes across multiple nodes. (If READ throughput is the problem, you don’t necessarily need sharding—you can use READ SCALING.
+
+While replication is useful at both small and large scale, because it enables fault tolerance and offline operation, sharding is a heavyweight solution that is mostly relevant at large scale.
+
+sharding often adds complexity: you typically have to decide which records to put in which shard by choosing a partition key; all records with the same partition key are placed in the same shard.
+
+Another problem with sharding is that a write may need to update related records in several different shards. While transactions on a single node are quite common, ensuring consistency across multiple shards requires a distributed transaction.
+
+
+Some systems use sharding even on a single machine, typically running one single-threaded process per CPU core to make use of the parallelism in the CPU- like Redis.
+
+Sharding for Multitenancy
+Software as a Service (SaaS) products and cloud services are often multitenant, where each tenant is a customer. Multiple users may have logins on the same tenant, but each tenant has a self-contained dataset that is separate from other tenants.
+
+Using sharding for multitenancy has several advantages:
+Resource isolation
+Permission isolation
+Per-tenant backup and restore
+Regulatory compliance- GDPR
+Data residence
+
+Our goal with sharding is to spread the data and the query load evenly across nodes- every node takes a fair share
+
+1- Sharding by Key Range
+Within each shard, keys are stored in sorted order (e.g., in a B-tree or SSTables).
+A downside of key range sharding is that you can easily get a hot shard if there are a lot of writes to nearby keys.
+
+Rebalancing key-range sharded data:
+When you first set up your database, there are no key ranges to split into shards. Some databases, such as HBase and MongoDB, allow you to configure an initial set of shards on an empty database, which is called pre-splitting. 
+
+An advantage of key-range sharding is that the number of shards adapts to the data volume. If there is only a small amount of data, a small number of shards is sufficient, so overheads are small; if there is a huge amount of data, the size of each individual shard is limited to a configurable maximum.
+
+A downside of this approach is that splitting a shard is an expensive operation, since it requires all of its data to be rewritten into new files. A shard that needs splitting is often also one that is under high load, and the cost of splitting can exacerbate that load, risking it becoming overloaded.
+
+2- Sharding by Hash of Key
+first hash the partition key before mapping it to a shard.
+The problem with the mod N(Key Range) approach is that if the number of nodes N changes, most of the keys have to be moved from one node to another.
+In this model(Hash of Key), only entire shards are moved between nodes, which is cheaper than splitting shards. 
+
+3- Sharding by hash range
+combine key-range sharding with a hash function so that each shard contains a range of hash values rather than a range of keys.
+
+
+# Request Routing
+very similar to service discovery
+
+Three Methods:
+1- Allow clients to contact any node (e.g., via a round-robin load balancer). If that node coincidentally owns the shard to which the request applies, it can handle the request directly; otherwise, it forwards the request to the appropriate node, receives the reply, and passes the reply along to the client.
+2- Send all requests from clients to a routing tier first, which determines the node that should handle each request and forwards it accordingly. This routing tier does not itself handle any requests; it only acts as a shard-aware load balancer.
+3- Require that clients be aware of the sharding and the assignment of shards to nodes. In this case, a client can connect directly to the appropriate node, without any intermediary.
+
+
+consensus algorithms
+Many distributed data systems rely on a separate coordination service which They use consensus algorithms:
+Many distributed data systems rely on a separate coordination service such as ZooKeeper or etcd to keep track of shard assignments.
+Each node registers itself in ZooKeeper, and ZooKeeper maintains the authoritative mapping of shards to nodes. Other actors, such as the routing tier or the sharding-aware client, can subscribe to this information in ZooKeeper. Whenever a shard changes ownership, or a node is added or removed, ZooKeeper notifies the routing tier
+
+# Sharding and Secondary Indexes

@@ -31,6 +31,8 @@ Non-clustered indexes: store pointers to the actual rows.
 Does not support true clustered indexes — the table (heap) is always unordered.
 Indexes are always separate from the table.
 
+index with included columns:
+in addition to storing the full row on the heap, This allows some queries to be answered by using the index alone, without having to look in the heap file. This can make some queries faster, but the duplication of data means the index uses more disk space and slows down writes.
 
 
 # Consider UUIDs as Promary key if:
@@ -38,4 +40,3 @@ You need global uniqueness across systems
 You're sharding or syncing across DBs
 You want to hide row counts or guessable IDs (for APIs)
 
-https://learning.oreilly.com/library/view/designing-data-intensive-applications/9781098119058/ch04.html

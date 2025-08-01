@@ -1,0 +1,1 @@
+RabbitMQ quorum queues (among others), are also based on a single leader, and automatically elect a new leader if the old one fails
