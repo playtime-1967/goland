@@ -512,3 +512,47 @@ Many distributed data systems rely on a separate coordination service such as Zo
 Each node registers itself in ZooKeeper, and ZooKeeper maintains the authoritative mapping of shards to nodes. Other actors, such as the routing tier or the sharding-aware client, can subscribe to this information in ZooKeeper. Whenever a shard changes ownership, or a node is added or removed, ZooKeeper notifies the routing tier
 
 # Sharding and Secondary Indexes
+The problem with secondary indexes is that they don’t map neatly to shards. There are two main approaches to sharding a database with secondary indexes: local and global indexes.
+- Local Secondary Indexes- locals to the shard:
+each shard maintains its own secondary indexes, covering only the records in that shard. It doesn’t care what data is stored in other shards.
+-Global Secondary Indexes:
+a global index that covers data in all shards
+
+
+# Chapter 8. Transactions
+The hype around NoSQL distributed databases led to a popular belief that transactions were fundamentally unscalable, and that any large-scale system would have to abandon transactions in order to maintain good performance and high availability. More recently, that belief has turned out to be wrong. So-called “NewSQL” databases such as CockroachDB have shown that transactional systems can scale to large data volumes and high throughput. These systems combine sharding with consensus protocols to provide strong ACID guarantees at scale.
+
+The Meaning of ACID- 
+-Atomicity
+if a transaction was aborted, the application can be sure that it didn’t change anything, so it can safely be retried.
+Perhaps abortability would have been a better term than atomicity.
+-Consistency
+-Isolation
+concurrently executing transactions are isolated from each other
+Violating isolation: one transaction reads another transaction’s uncommitted writes (a “dirty read”).
+-Durability
+
+# Handling errors and aborts
+Although retrying an aborted transaction is a simple and effective error handling mechanism, it isn’t perfect:
+-If the transaction actually succeeded, but the network was interrupted while the server tried to acknowledge the successful commit to the client (so it timed out from the client’s point of view), then retrying the transaction causes it to be performed twice—unless you have an additional application-level deduplication mechanism in place.
+-If the error is due to overload or high contention between concurrent transactions, retrying the transaction will make the problem worse, not better. To avoid such feedback cycles, you can limit the number of retries, use exponential backoff, and handle overload-related errors differently from other errors
+-It is only worth retrying after transient errors (for example due to deadlock, isolation violation, temporary network interruptions, and failover); after a permanent error (e.g., constraint violation) a retry would be pointless.
+-If the transaction also has side effects outside of the database, those side effects may happen even if the transaction is aborted. For example, if you’re sending an email, you wouldn’t want to send the email again every time you retry the transaction. If you want to make sure that several different systems either commit or abort together, two-phase commit can help.
+
+
+# Isolation Levels
+Concurrency issues (race conditions) only come into play when one transaction reads data that is concurrently modified by another transaction, or when the two transactions try to modify the same data.
+serializable isolation means that the database guarantees that transactions have the same effect as if they ran serially.
+
+Read Committed Isolation Level:
+When reading from the database, you will only see data that has been committed (no dirty reads).
+When writing to the database, you will only overwrite data that has been committed (no dirty writes).
+Read committed is a very popular isolation level. It is the default setting in PostgreSQL and SQL Server.
+
+Some databases support an even weaker isolation level called read uncommitted. It prevents dirty writes, but does not prevent dirty reads.
+
+prevent dirty writes by using row-level locks:
+when a transaction wants to modify a particular row (or document or some other object), it must first acquire a lock on that row. It must then hold that lock until the transaction is committed or aborted. Only one transaction can hold the lock for any given row; if another transaction wants to write to the same row, it must wait until the first transaction is committed or aborted before it can acquire the lock and continue. This locking is done automatically by databases in read committed mode (or stronger isolation levels).
+
+
+
