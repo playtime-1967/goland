@@ -554,5 +554,127 @@ Some databases support an even weaker isolation level called read uncommitted. I
 prevent dirty writes by using row-level locks:
 when a transaction wants to modify a particular row (or document or some other object), it must first acquire a lock on that row. It must then hold that lock until the transaction is committed or aborted. Only one transaction can hold the lock for any given row; if another transaction wants to write to the same row, it must wait until the first transaction is committed or aborted before it can acquire the lock and continue. This locking is done automatically by databases in read committed mode (or stronger isolation levels).
 
+Atomic operations are usually implemented by taking an exclusive lock on the object when it is read so that no other transaction can read it until the update has been applied
+
+# lost update problem
+can occur if an application reads some value from the database, modifies it, and writes back the modified value (a read-modify-write cycle). If two transactions do this concurrently, one of the modifications can be lost, because the second write does not include the first modification.
+- This pattern occurs in various different scenarios:
+Incrementing a counter or updating an account balance
+Two users editing a wiki page at the same time,
+
+Solutions:
+-Atomic write operations:
+usually implemented by taking an exclusive lock on the object when it is read so that no other transaction can read it until the update has been applied
+-Explicit locking:
+if the database’s built-in atomic operations don’t provide the necessary functionality, is for the application to explicitly lock objects that are going to be updated.
+sample:
+BEGIN TRANSACTION;
+SELECT * FROM figures
+  WHERE name = 'robot' AND game_id = 222
+  FOR UPDATE; //database should take a lock on all rows returned by this query
+-- Check whether move is valid, then update the position of the piece that was returned by the previous SELECT.
+UPDATE figures SET position = 'c4' WHERE id = 1234;
+COMMIT;
+
+- Automatically detecting lost updates:
+PostgreSQL’s repeatable read, Oracle’s serializable, and SQL Server’s snapshot isolation levels automatically detect when a lost update has occurred and abort the offending transaction.
+
+-Conditional writes (compare-and-set)
+UPDATE wiki_pages SET content = 'new content' WHERE id = 1234 AND content = 'old content';
+
+# Conflict resolution and replication
+In replicated databases, preventing lost updates takes on another dimension: since they have copies of the data on multiple nodes, and the data can potentially be modified concurrently on different nodes, some additional steps need to be taken to prevent lost updates.
+
+# Write Skew and Phantoms
+we saw dirty writes and lost updates, two kinds of race conditions that can occur when different transactions concurrently try to write to the same objects.
+example: you are writing an application for doctors to manage their on-call shifts at a hospital. Aaliyah and Bryce are the two on-call doctors for a particular shift. Both are feeling unwell, so they both decide to request leave at the same time.
+Aaliyah updates her own record to take herself off call, and Bryce updates his own record likewise. Both transactions commit, and now no doctor is on call. 
+It is neither a dirty write nor a lost update, because the two transactions are updating two different objects.
+Solutions:
+Atomic single-object operations don’t help, as multiple objects are involved.
+The automatic detection of lost updates that you find in some implementations of snapshot isolation unfortunately doesn’t help either.
+- best option:
+explicitly lock the rows that the transaction depends on.
+BEGIN TRANSACTION;
+SELECT * FROM doctors
+  WHERE on_call = true
+  AND shift_id = 1234 FOR UPDATE; //lock all rows returned by this query
+UPDATE doctors
+  SET on_call = false
+  WHERE name = 'Aaliyah'
+  AND shift_id = 1234;
+COMMIT;
+
+# Phantoms causing write skew
+check for the absence of rows matching some search condition, and the write adds a row matching the same condition.
+This effect, where a write in one transaction changes the result of a search query in another transaction, is called a phantom
+samples:
+Claiming a username: where each user has a unique username, two users may try to create accounts with the same username at the same time. a unique constraint is a simple solution here.
+Preventing double-spending: check that a user doesn’t spend more than they have
+
+# Materializing conflicts
+If the problem of phantoms is that there is no object to which we can attach the locks, perhaps we can artificially introduce a lock object into the database?
+For example, in the meeting room booking case you could imagine creating a table of time slots and rooms.
+
+
+# Serializability
+If you look at your application code, it’s difficult to tell whether it is safe to run at a particular isolation level.
+There are no good tools to help us detect race conditions.
+Serializable isolation is the strongest isolation level. It guarantees that even though transactions may execute in parallel, the end result is the same as if they had executed one at a time, serially, without any concurrency.
+
+ways:
+1-Actual Serial Execution
+A system designed for single-threaded execution can sometimes perform better than a system that supports concurrency, because it can avoid the coordination overhead of locking.
+
+2-Two-Phase Locking (2PL)
+Two-phase locking makes the lock requirements much stronger. Several transactions are allowed to concurrently read the same object as long as nobody is writing to it. But as soon as anyone wants to write (modify or delete) an object, exclusive access is required:
+-If transaction A has read an object and transaction B wants to write to that object, B must wait until A commits or aborts before it can continue. 
+-If transaction A has written an object and transaction B wants to read that object, B must wait until A commits or aborts before it can continue.
+In 2PL, writers don’t just block other writers; they also block readers and vice versa. 
+while Snapshot isolation has the mantra readers never block writers, and writers never block readers.
+Because 2PL provides serializability, it protects against all the race conditions discussed earlier, including lost updates and write skew.
+2PL is used by the serializable isolation level in MySQL (InnoDB) and SQL Server.
+
+shared mode or in exclusive mode: (also known as a multi-reader single-writer lock).
+-If a transaction wants to read an object, it must first acquire the lock in shared mode. Several transactions are allowed to hold the lock in shared mode simultaneously, but if another transaction already has an exclusive lock on the object, these transactions must wait.
+-If a transaction wants to write to an object, it must first acquire the lock in exclusive mode. No other transaction may hold the lock at the same time (either in shared or in exclusive mode), so if there is any existing lock on the object, the transaction must wait.
+-If a transaction first reads and then writes an object, it may upgrade its shared lock to an exclusive lock. The upgrade works the same as getting an exclusive lock directly.
+the first phase (while the transaction is executing) is when the locks are acquired, and the second phase (at the end of the transaction) is when all the locks are released.
+
+deadlock:
+it can happen quite easily that transaction A is stuck waiting for transaction B to release its lock, and vice versa. The database automatically detects deadlocks between transactions and aborts one of them so that the others can make progress. The aborted transaction needs to be retried by the application.
+
+Performance of two-phase locking:
+significantly worse, reducing concurrency
+
+
+# Serializable Snapshot Isolation (SSI)
+we have implementations of serializability that don’t perform well (two-phase locking) or don’t scale well (serial execution). On the other hand, we have weak isolation levels that have good performance, but are prone to various race conditions (lost updates, write skew, phantoms)
+an algorithm called serializable snapshot isolation (SSI) provides full serializability with only a small performance penalty compared to snapshot isolation.
+
+
+Pessimistic versus optimistic concurrency control
+Two-phase locking is a so-called pessimistic concurrency control mechanism: it is based on the principle that if anything might possibly go wrong (as indicated by a lock held by another transaction), it’s better to wait until the situation is safe again before doing anything.
+Serial execution is, in a sense, pessimistic to the extreme: it is essentially equivalent to each transaction having an exclusive lock on the entire database (or one shard of the database) for the duration of the transaction
+
+serializable snapshot isolation is an optimistic concurrency control technique, means that instead of blocking if something potentially dangerous happens, transactions continue anyway, in the hope that everything will turn out all right. When a transaction wants to commit, the database checks whether anything bad happened (i.e., whether isolation was violated); if so, the transaction is aborted and has to be retried.
+How it detect violation?
+- Detecting reads of a stale MVCC object version (uncommitted write occurred before the read)
+- Detecting writes that affect prior reads
+
+Compared to two-phase locking, the big advantage of serializable snapshot isolation is that one transaction doesn’t need to block waiting for locks held by another transaction
+
+# Distributed Transactions
+For transactions that execute at a single database node, atomicity is commonly implemented by the storage engine.
+
+Two-Phase Commit (2PC)
+2PC uses a new component that does not normally appear in single-node transactions: a coordinator (also known as transaction manager). The coordinator is often implemented as a library within the same application.
+When the application is ready to commit, the coordinator begins phase 1: it sends a prepare request to each of the nodes, asking them whether they are able to commit. The coordinator then tracks the responses from the participants:
+If all participants reply “yes,” indicating they are ready to commit, then the coordinator sends out a commit request in phase 2, and the commit actually takes place.
+If any of the participants replies “no,” the coordinator sends an abort request to all nodes in phase 2.
+
+A system of promises
+
+
 
 
