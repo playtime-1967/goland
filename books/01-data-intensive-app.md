@@ -672,9 +672,107 @@ Two-Phase Commit (2PC)
 When the application is ready to commit, the coordinator begins phase 1: it sends a prepare request to each of the nodes, asking them whether they are able to commit. The coordinator then tracks the responses from the participants:
 If all participants reply “yes,” indicating they are ready to commit, then the coordinator sends out a commit request in phase 2, and the commit actually takes place.
 If any of the participants replies “no,” the coordinator sends an abort request to all nodes in phase 2.
+Performance:
+Much of the performance cost inherent in two-phase commit is due to the additional disk forcing (fsync) that is required for crash recovery, and the additional network round-trips.
 
-A system of promises
+Two quite different types of distributed transactions:
+-Database-internal distributed transactions:
+Some distributed databases (that use replication and sharding) support internal transactions among the nodes of that database.
+-Heterogeneous distributed transactions
+the participants are two or more different technologies: for example, two databases from different vendors, or even non-database systems such as message brokers.
 
+# XA transactions
+short for eXtended Architecture
+is a standard for implementing two-phase commit across heterogeneous technologies
+
+Problems with XA transactions:
+A single-node coordinator is a single point of failure for the entire system, and making it part of the application server is also problematic because the coordinator’s logs on its local disk become a crucial part of the durable system state.
+The biggest problems with XA can be fixed by:
+Replicating the coordinator, with automatic failover to another coordinator node if the primary one crashes;
+
+# Chapter 9. The Trouble with Distributed Systems
+Fault injection
+inject faults into a running system’s environment and see how it behaves. Faults can be network failures, machine crashes, disk corruption, paused processes
+
+# Chapter 10. Consistency and Consensus
+
+Linearizability
+also known as atomic consistency [2], strong consistency, immediate consistency, or external consistency
+make a system appear as if there were only one copy of the data, and all operations on it are atomic. With this guarantee, even though there may be multiple replicas in reality, the application does not need to worry about them.
+In a linearizable system, as soon as one client successfully completes a write, all clients reading from the database must be able to see the value just written. 
+Linearizability vs serializability:
+stale reads are allowed by serializability
+
+In what circumstances is linearizability useful?
+A system that uses single-leader replication needs to ensure that there is indeed only one leader, not several (split brain).
+Coordination services like ZooKeeper and etcd use consensus algorithms to implement linearizable operations in a fault-tolerant way.
+
+Consensus:
+Consensus is a fundamental problem in fault-tolerant distributed systems. Consensus involves multiple servers agreeing on values. Once they reach a decision on a value, that decision is final. Typical consensus algorithms make progress when any majority of their servers is available; for example, a cluster of 5 servers can continue to operate even if 2 servers fail. If more servers fail, they stop making progress (but will never return an incorrect result).
+
+Linearizability and quorums
+Figure 28. A nonlinearizable execution, despite using a quorum.
+The CAP theorem only considers one consistency model (namely linearizability) and one kind of fault (network partitions). It doesn’t say anything about network delays, dead nodes, or other trade-offs.Thus, although CAP has been historically influential, it has little practical value for designing systems
+
+# ID Generators and Logical Clocks
+In single-node databases it is common to use an auto-incrementing integer, which has the advantage that it can be stored in only 64 bits (or even 32 bits if you are sure that you will never have more than 4 billion records, but that is risky).
+
+There are various alternative options for ID generators that you can consider:
+-Sharded ID assignment: 
+You could have multiple nodes that assign IDs—for example, one that generates only even numbers, and one that generates only odd numbers.
+-Preallocated blocks of IDs: 
+node A might claim the block of IDs from 1 to 1,000, and node B might claim the block from 1,001 to 2,000.
+-Random UUIDs: 
+These have the big advantage that they can be generated locally on any node without requiring communication, but they require more space (128 bits).
+-Wall-clock timestamp made unique:
+for ex, Twitter’s Snowflake, MongoDB ObjectIDs
+putting a timestamp from that clock in the most significant bits, and filling the remaining bits with extra information that ensures the ID is unique even if the timestamp is not.
+
+All these schemes generate IDs that are unique, but they have much weaker ordering guarantees for IDs than the single-node auto-incrementing scheme.
+Solution:
+#Logical Clocks
+requirements for a logical clock:
+its timestamps are compact (a few bytes in size) and unique;
+you can compare any two timestamps (i.e. they are totally ordered);
+the order of timestamps is consistent with causality: if operation A happened before B, then A’s timestamp is less than B’s timestamp;
+
+Linearizable ID Generators
+using a single node for this purpose. That node only needs to atomically increment a counter and return its value when requested, persist the counter value (so that it doesn’t generate duplicate IDs if the node crashes and restarts), and replicate it for fault tolerance (using single-leader replication)
+
+how does a node know whether its own timestamp is the lowest? To be sure, it needs to hear from every other node that might have generated a timestamp
+To implement locks, leases, and similar constructs in a fault-tolerant way, we need something stronger than logical clocks or ID generators: we need consensus.
+
+# Consensus
+
+types of consensus:
+1-Single-value consensus
+For example:
+-Several nodes may concurrently try to become the leader.
+-Multiple nodes may race to acquire a lock or lease
+-If several people concurrently try to book the last seat on an airplane
+
+2-Compare-and-set as consensus.
+A compare-and-set (CAS) operation checks whether the current value of some object equals some expected value; if yes, it atomically updates the object to some new value; if no, it leaves the object unchanged and returns an error.
+
+3-Shared logs as consensus
+A log stores a sequence of log entries, and anyone who reads it sees the same entries in the same order
+
+4-Fetch-and-add as consensus
+like ID generator: atomically increments a counter and returns the old counter value.
+
+5-Atomic commitment as consensus
+a transaction can only commit if all nodes agree. the algorithm must abort if any of the participants voted to abort.
+If a node decides to commit, then all nodes must have previously voted to commit. If any node voted to abort, the nodes must abort.
+
+# Consensus in Practice
+Consensus is essentially “single-leader replication done right”, with automatic failover on leader failure, ensuring that no committed data is lost and no split-brain is possible.
+Consensus systems always require a strict majority to operate—three nodes to tolerate one failure, or five nodes to tolerate two failures. 
+Every operation needs to communicate with a quorum, so you can’t increase throughput by adding more nodes (in fact, every node you add makes the algorithm slower).
+Consensus systems generally rely on timeouts to detect failed nodes. 
+
+# Coordination Services
+Consensus algorithms are useful in any distributed database that wants to offer linearizable operations, and many modern distributed databases use consensus algorithms for replication. 
+Although coordination services such as ZooKeeper and etcd look like any other key-value store, they are not designed for general-purpose data storage like most databases. Instead, they are designed to coordinate between nodes of another distributed system.
 
 
 
